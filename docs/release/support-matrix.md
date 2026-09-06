@@ -27,7 +27,7 @@ has never walked.
 | --- | --- | --- |
 | macOS on Apple Silicon | **Target platform** | The install shape is in [`developer-preview.md`](developer-preview.md). |
 | macOS on Intel | **Unverified** | The portable design and locked `darwin-x64` dependencies make this path expected to work, but nothing has been run there. |
-| Linux | **Maintainer-verified** | Ubuntu 24.04 LTS on x86_64, Node.js 26.8.1, Codex CLI 0.153.4: the maintainer's own installation runs the API, web console, PostgreSQL, release migrations, sixteen Codex and Pi runners and the merge executor there. Other distributions are **Unverified**. |
+| Linux | **Maintainer-verified** | Ubuntu 24.04 LTS on x86_64, Node.js 26.8.1, Codex CLI 0.153.4: the maintainer's own installation runs the API, web console, PostgreSQL, release migrations, sixteen Codex and Pi runners and the merge executor there. At the v0.8.0 cut the maintainer also walked the [quickstart](developer-preview.md) on a separate Ubuntu 22.04 x86_64 host that had never held an install (Node.js 26.5.0, 4 vCPU, 4 GB): clone, `npm ci`, `setup:local`, build, PostgreSQL, the fresh release migration and starting the API, runner and web console all succeeded as written; the install wizard and smoke task were not run there because that host has no Codex sign-in. Other distributions are **Unverified**. |
 | Windows | **Unsupported** | The runner relies on POSIX process-group, path and command behaviour. This is a design position, not a gap waiting to be filled. |
 
 ## Runtime prerequisites
@@ -59,7 +59,7 @@ the CLI vendor.
 
 | Provider runtime | Status | Evidence boundary |
 | --- | --- | --- |
-| Codex CLI | **Verified adapter; model access Pending smoke** | Startup preflight checks the installed version, the exact `exec`/resume flags and stdin/JSON protocol Anneal uses, and login status; its capability report is bound to the starter model `gpt-5.6-sol:medium`. OpenAI publishes no minimum CLI semver for this combination, so compatibility is capability-based rather than an invented version floor; 0.153.4 is the last version recorded as compatible. Entitlement still requires the deterministic smoke task. |
+| Codex CLI | **Verified adapter; model access Maintainer-verified** | Startup preflight checks the installed version, the exact `exec`/resume flags and stdin/JSON protocol Anneal uses, and login status; its capability report is bound to the starter model `gpt-5.6-sol:medium`. OpenAI publishes no minimum CLI semver for this combination, so compatibility is capability-based rather than an invented version floor; 0.153.4 is the last version recorded as compatible. Model access is maintainer-verified rather than smoke-tested: every canonical role runs on Codex in this release, and the maintainer's own installation runs Codex chains through plan, implementation, review and merge daily. Independent reproduction on a machine that never held an install is not part of the evidence. |
 | Claude Code | **Verified** / **Maintainer-verified** | Adapter and runtime are verified. Claude Pro/Max subscription authentication is maintainer-verified on macOS Apple Silicon. |
 | Pi | **Verified** | Adapter/runtime and subscription authentication path are verified. Pi authenticates through the Codex login. |
 

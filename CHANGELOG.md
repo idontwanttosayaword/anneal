@@ -9,6 +9,179 @@ written.
 
 ## Unreleased
 
+## v0.8.0 — Developer Preview 8
+
+The eighth preview is about who does the work, and where it runs. Staffing
+profiles let a project decide, step by step, which agent runs a template step
+and which optional steps it skips, and a new Workflows console edits that
+without hand-authoring a template. Linux becomes a maintainer-verified platform
+with systemd units for every service, a host can contribute its own merge-gate
+slots instead of dispatching everything to a remote worker, and the console
+reaches every control from a phone. As with every 0.x minor, behaviour changes
+below are breaking-eligible. There is still no supported upgrade path between
+previews other than a fresh install. This release adds three migrations.
+
+### Staffing, templates and workflows
+
+- **A task template carries staffing profiles, and one of them is the
+  default.** A profile holds one entry per step, keyed on the step's exact
+  `outputKind`, naming the agent that runs it and — for an optional step —
+  whether it is included or skipped. Profiles are created, duplicated, made
+  default, reset and deleted through
+  `/projects/:projectId/task-templates/:templateId/staffing-profiles` and
+  `/staffing-profiles/:profileId`, validated under the Agent mutex, and carried
+  through project bootstrap, template clone, step-graph replacement and
+  canonical rollover. Instantiation resolves each step as dispatch
+  `stepOverrides`, then the selected profile, then the canonical binding; a
+  `Staffing: <name>` line in a brief selects a profile by name, and the chain
+  root records which one was used.
+- **`Project.skipOptionalSteps` is removed.** The column, its lock projection,
+  the `PATCH /projects/:projectId` input, the wire contract and the Projects
+  page toggle are all gone. Skipping an optional step is now a per-step decision
+  inside a staffing profile, not a project-wide switch.
+- **A template step can be declared optional.** A step marked optional in its
+  frontmatter can be included or skipped without cloning the template, and the
+  legacy template-shape comparators match on the optional flag each step
+  declares rather than assuming every step is mandatory.
+- **Canonical agents are identified by `canonicalRole`, not by their name, and
+  are renamed in place to `role-model-effort` slugs** with two-word titles. The
+  `customizedFields` list replaces `runtimeConfigCustomized`, an agent can be
+  copied with `POST /agents/:agentId/duplicate`, and archiving an agent is
+  refused while a staffing profile still references it.
+- **Review steps are named for what they do, not for the model that runs
+  them.** Every legacy template name the merge integrator can mint still
+  resolves through the transition registry, and retired template generations
+  fold away in the console so the current templates list first.
+- **Reassigning a task is refused with `409` while that task has an active
+  Run.** A retry with a new assignee derives the new agent's full runtime
+  configuration rather than inheriting the old one.
+- A control-plane step cannot be staffed at all, and a repair card never falls
+  back to a hidden role when its own role is missing.
+- The Workflows page (`/workflows`) walks templates, then profiles, then a
+  per-step editor with an assignable-agent picker and an include/skip toggle on
+  optional steps. The New Task panel gained a profile selector and a preview
+  that resolves override over profile over canonical, marking skipped steps
+  before the chain is created.
+
+### Agents and model routes
+
+- Canonical roles run on Codex rather than Pi.
+- `gpt-6-astra` joins the model catalogue, priced and exposed at low, medium,
+  high, xhigh and max. Implementation, plan execution and review coordination
+  route through `gpt-6-astra:medium`; the review-fix step of every template
+  binds to `senior-dev-astra-low`; `senior-dev-sol` and `senior-dev-opus` are
+  explicit routes an operator can name in a brief but are never a template
+  default.
+- The retired bindings behind these moves are registered as structural
+  generations, so a project that has not rolled over is recognized instead of
+  being treated as drift.
+
+### Chains, Runs and the runner
+
+- **A chain name is required at instantiation**, at the API, in the web form
+  and in the brief template. An unnamed chain is refused rather than given a
+  generated placeholder.
+- **A runner serves only the runner kinds it declares**, through the new
+  `RUNNER_SERVED_KINDS`. An unset value keeps serving every kind; an invalid
+  value refuses daemon startup.
+- **The first mirror clone of a repository on a machine has its own time
+  budget**, and its mirror root is configurable with `RUNNER_REPO_MIRROR_ROOT`.
+  `docs/install.md` documents pre-seeding a mirror so a cold host does not spend
+  a Run's budget on the initial clone.
+- **`RUNNER_PATH` is now optional**, defaulting per platform: the Homebrew-first
+  path on macOS and the standard path on Linux. The runner's admission,
+  workspace restore and PATH mechanisms work on Linux as they do on macOS.
+- A provider capacity refusal is classified as a transient external fault rather
+  than as the agent's failure, and a fix step resumes from its own salvaged
+  attempt through the new `Run.salvageParentSha`. An external transport fault
+  refunds the attempt against the Run budget and names the fault instead of
+  spending a retry silently.
+- A Codex Run survives a provider disconnect by resuming inside the same Run,
+  rather than being abandoned and retried from the top.
+- An automatic retry publishes to the branch its task declares, not to whatever
+  branch the previous attempt happened to leave behind.
+- A regression FAIL excerpt carries the pytest failures for a Python-gated
+  repository, so the failing tests are named in the repair brief.
+
+### Merge tail, merge train and the merge executor
+
+- A regression FAIL inside base-drift recovery has an operator-driven repair
+  reentry: `POST /tasks/:taskId/merge-tail/repair` restarts the tail from the
+  card that failed instead of leaving the chain stopped.
+- A rejected completion is not retried automatically once the Run has been
+  judged lost, and archiving a chain closes its open merge-tail stop notices in
+  the Inbox.
+- A merge train that finds the lease contended waits for it, then publishes the
+  prefixes it has already proven while `main` is unchanged, rather than
+  discarding proven work.
+- A review step pins the implementation range from platform facts — the Run's
+  own recorded SHAs — rather than from SHAs an agent typed into its output.
+- The merge executor serialises a nested `Error` into its name, message, stack
+  and `cause` chain instead of logging `{}`, and it runs when started through
+  the `current -> releases/<oid>` symlink its own runbook installs. Before this,
+  a symlinked install exited 0 silently and was respawned forever by the service
+  manager.
+
+### Merge gate
+
+- **A host contributes a configurable number of local gate slots**, tried before
+  its configured remote worker, through `RUNNER_GATE_LOCAL_SLOTS` and
+  `AGENTOS_GATE_LOCAL_SLOTS`. Local dispatch stays off when neither is set.
+  Local slots are accounted per runner account rather than per Codex session.
+- `jq` is declared as a gate-worker prerequisite: `provision.sh` installs it, and
+  a worker without it reports `GATE NOT RUN` beside the git, node and flock
+  checks instead of producing a FAIL that says nothing about the commit.
+- Type-aware eslint runs with a 3.5 GiB heap ceiling, which is where the gate
+  had begun failing with a V8 out-of-memory inside `lint:types`.
+
+### Web console
+
+- The console has a phone shell: a sticky top bar with the project switcher and
+  runner state, a five-slot tab bar and a bottom sheet for the remaining pages,
+  Settings and the theme. The runner row is a link rather than a hover-only
+  control, and the dark sidebar's faint text meets 4.5:1.
+- Every page was read at 390x844 and made to fit: definition lists collapse to
+  one column, metric cards go two to a row, the daily spend chart has its own
+  phone geometry with legible axes, and touch targets are 44px — grown where a
+  control can grow and given a hit halo where it cannot. No route scrolls
+  horizontally except the data tables, which scroll by design.
+- An operator can lift a task's run budget and edit its prompt from the task
+  page, instead of reaching for `PATCH /tasks/:id` by hand after a
+  `409 Run budget exhausted`.
+- The hold action reads "Hold" on a board card and "Hold Chain" on the chain
+  detail, replacing "Stop after current step" and "Stop after current layer".
+
+### Costs and API
+
+- A Codex session with native children is priced by the model that produced each
+  token, rather than attributing every token to the session's parent model.
+- A mechanical completion contract mismatch opens an Inbox alert instead of
+  failing where nobody sees it.
+- The runner telemetry registry keeps every daemon it has seen inside the forget
+  window, so a briefly silent runner does not disappear from the console.
+
+### Installation and maintainer deployment
+
+- **The API refuses to start without `GITHUB_READ_TOKEN`.** A missing or
+  placeholder value exits 78 with a `missing:GITHUB_READ_TOKEN` or
+  `placeholder-value:GITHUB_READ_TOKEN` reason. The credential is read-only and
+  is never exchanged with the merge token; it is now required of every API
+  process, whether or not Direct or Full Assurance is enabled. Obtain one before
+  running the install sequence.
+- Anneal's services install and deploy as systemd units on Linux, alongside the
+  existing macOS profile.
+- **Runner identities can be namespaced with `AGENTOS_RUNNER_ID_PREFIX`**, so a
+  second machine's runners do not collide with the control plane's. Reinstall
+  grows and shrinks the unit set without touching surviving units, and a
+  privileged transition is bound to the prior manifest and transaction digests.
+- A malformed install manifest is refused with an error naming the file and the
+  field, and a host that keeps only runners follows the control plane's deployed
+  build automatically.
+- The release artifact build retries a transient source clone failure before
+  escalating, and the auto-deploy suite is hermetic on a developer Mac.
+- These changes apply to the maintainer appliance. The public Developer Preview
+  continues to use the foreground fresh-install sequence in the README.
+
 ### Documentation
 
 - Linux (Ubuntu 24.04 LTS, x86_64) is now a maintainer-verified platform
@@ -18,6 +191,64 @@ written.
 - The remote gate-worker profile, the autonomous merge tail and the Linux
   systemd merge executor move from Unverified to Maintainer-verified in the
   support matrix; the macOS LaunchDaemon executor profile stays Unverified.
+- Codex CLI model access moves from Pending to Maintainer-verified in the
+  support matrix: since the canonical roles moved to Codex, the maintainer's own
+  installation runs Codex chains daily. The adapter's verification wording is
+  unchanged.
+- The 2026-09-04 documentation audit corrected the reader surface: the routing
+  and delivery runbooks, the agents' verification and deployment boundaries, the
+  repository instructions and the decision-record surface. ADR 0001 keeps its
+  decision and moves its diagnosis to operator records.
+- `CONTRIBUTING.md` documents pre-acquiring the merge lease before a host-run
+  merge train.
+
+### Internal structure
+
+- A refactor wave gave single owners to the canonical source prompt generation,
+  the Run's publish target, the mechanical contract compatibility decision, the
+  template step field table and its omission fact, the completion advancement
+  decision, the provider relaunch gate, the Run verdict over its exit record,
+  the deployment service inventory, the sudoers grant derivation and the
+  installer outcome. A first simplification wave removed five zero-reference
+  database exports, a never-declared runner session-tool transport, an unused
+  deploy preflight script and several inert web allowlist rows. These changes
+  are intended to preserve their existing external behaviour.
+- The published prompt generation is a checked-in fact rather than something
+  recomputed at read time, and the pre-optional-review prompt rollover is
+  registered.
+- The removed surfaces in this release are `Project.skipOptionalSteps`,
+  `runtimeConfigCustomized` and the `agentName` literals in retired-generation
+  fingerprints. The new routes are `POST /agents/:agentId/duplicate`,
+  `GET /projects/:projectId/task-templates`, the staffing-profile routes under
+  `/projects/:projectId/task-templates/:templateId/staffing-profiles` and
+  `/staffing-profiles/:profileId`, and `POST /tasks/:taskId/merge-tail/repair`.
+  The new configuration keys are `RUNNER_SERVED_KINDS`,
+  `RUNNER_GATE_LOCAL_SLOTS`, `AGENTOS_GATE_LOCAL_SLOTS`,
+  `RUNNER_REPO_MIRROR_ROOT` and `AGENTOS_RUNNER_ID_PREFIX`; `GITHUB_READ_TOKEN`
+  changes from optional to required.
+
+### Known limitations
+
+- There is no supported in-place upgrade from v0.7.0. Install v0.8.0 against an
+  empty schema with `npm run db:migrate:release -- --fresh`.
+- The delivery symptom in [Issue #305](https://github.com/mosonlab/anneal/issues/305)
+  is classified accurately, but the provider-side cause is not eliminated: a
+  code-producing provider can still end a successful session without writing or
+  committing its announced work. A manual Task's final prose remains in its
+  Session events and is not promoted to retry handoff output.
+- The pull-request tier stops at an open pull request. Anneal does not review or
+  merge it for you, and onboarding a project does not provision another
+  workflow or create a Secret.
+- macOS on Apple Silicon and Linux (Ubuntu 24.04 LTS, x86_64) are the verified
+  targets. macOS on Intel is expected to work but has not been exercised;
+  Windows is unsupported by design.
+- On a phone, the data tables still scroll horizontally rather than becoming
+  card lists; the `Toggle` and `Check` controls keep their existing hit targets
+  because a halo would overlap the rows around them; and iOS Safari zooms on a
+  focused input, because the application's type scale is pinned to a 13px root
+  and `maximum-scale=1` would cost pinch zoom.
+- Anneal still launches coding CLIs with the operator account's authority and
+  is not a sandbox.
 
 ## v0.7.0 — Developer Preview 7
 

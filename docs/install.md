@@ -34,7 +34,7 @@ into a provider and never reads a credential store.
 ```sh
 git clone https://github.com/mosonlab/anneal.git
 cd anneal
-git checkout v0.7.0
+git checkout v0.8.0
 npm ci
 printf 'GitHub read token: '
 IFS= read -r -s GITHUB_READ_TOKEN
