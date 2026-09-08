@@ -17,6 +17,7 @@
     { "glob": "CONTEXT.md", "purpose": "domain glossary agents read before working in this repository" },
     { "glob": "CHANGELOG.md", "purpose": "what is in each release, by area, including the known limitations that are documented positions rather than open bugs" },
     { "glob": "CONTRIBUTING.md", "purpose": "how this repository is changed: the single merge gate, the testing red lines, the closed public surface, and the state of outside contributions" },
+    { "glob": "FORK-NOTES.md", "purpose": "fork-specific development notes: upstream merge policy, change isolation rules, and snapshot registration procedure" },
     { "glob": "LICENSE", "purpose": "license grant" },
     { "glob": "README.md", "purpose": "project documentation" },
     { "glob": "README.zh-CN.md", "purpose": "Chinese project documentation" },
